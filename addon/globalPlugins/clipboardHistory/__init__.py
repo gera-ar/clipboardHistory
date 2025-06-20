@@ -39,7 +39,7 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
 	# Translators: nombre de categoría en el diálogo de gestos de entrada
 	category_name= _('Historial del portapapeles')
 	
-	ignored_keys= ['leftControl', 'rightControl', 'leftShift', 'rightShift', 'NVDA', 'leftAdvanceBar', 'rightAdvanceBar']
+	ignored_keys= ['leftControl', 'rightControl', 'leftShift', 'rightShift', 'NVDA', 'leftAdvanceBar', 'rightAdvanceBar', 'ecoBraille', 'routing']
 	def __init__(self, *args, **kwargs):
 		super(GlobalPlugin, self).__init__(*args, **kwargs)
 		self.data= []
