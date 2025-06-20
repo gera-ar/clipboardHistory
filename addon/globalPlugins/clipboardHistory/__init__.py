@@ -103,8 +103,9 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
 	)
 	def script_viewData(self, gesture):
 		if self.switch or self.dialogs: return
-		data= db.get('SELECT string, favorite FROM strings ORDER BY id DESC', 'all')
-		favorites= [x for x in data if x[1] == 1]
+		data= db.get('SELECT string, favorite FROM strings WHERE favorite = 0 ORDER BY id DESC', 'all')
+		# favorites= [x for x in data if x[1] == 1]
+		favorites= db.get('SELECT string, favorite FROM strings WHERE favorite = 1 ORDER BY id DESC', 'all')
 		self.data= [data, favorites]
 		settings= db.get('SELECT sounds, max_elements, number FROM settings', 'one')
 		self.sounds, self.max_elements, self.number= settings[0], settings[1], settings[2]
@@ -161,9 +162,7 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
 	@emptyListDecorator
 	def script_deleteItem(self, gesture):
 		if self.y == 1:
-			index= self.data[0].index(self.data[1][self.x])
-			self.data[0][index]= (self.data[1][self.x][0], 0)
-			db.update('UPDATE strings SET favorite=0 WHERE string=?', (self.data[0][index][0],))
+			db.delete('DELETE FROM strings WHERE string=?', (self.data[1][self.x][0],))
 			self.data[1].pop(self.x)
 			# Translators: Mensaje de favorito eliminado
 			ui.message(_('Eliminado de favoritos'))
@@ -353,7 +352,8 @@ escape; desactiva la capa de comandos
 		if self.data[0][self.x][1] == 0:
 			self.data[0][self.x]= (self.data[0][self.x][0], 1)
 			self.data[1].append(self.data[0][self.x])
-			db.update('UPDATE strings SET favorite=1 WHERE string=?', (self.data[0][self.x][0],))
+			self.data[0].pop(self.x)
+			db.update('UPDATE strings SET favorite=1 WHERE string=?', (self.data[1][self.x][0],))
 			# Translators: Mensaje de marcado como favorito
 			ui.message(_('Marcado como favorito'))
 		else:
