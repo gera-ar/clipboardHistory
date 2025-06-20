@@ -26,7 +26,7 @@ addon_info = {
 	"addon_description": _("""Módulo global que guarda el historial del portapapeles de Windows en una base de datos local, permitiendo la persistencia y la gestión a través de una interfaz invisible con opciones avanzadas, como a través de una interfaz gráfica simplificada.
 Permite buscar, visualizar, obtener datos del texto, gestionar favoritos, pegar contenido en el foco,exportar e importar la base de datos."""),
 	# version
-	"addon_version": "1.1",
+	"addon_version": "1.2",
 	# Author(s)
 	"addon_author": "Gerardo Kessler <gera.ar@yahoo.com>",
 	# URL for the add-on documentation support
@@ -38,7 +38,7 @@ Permite buscar, visualizar, obtener datos del texto, gestionar favoritos, pegar 
 	# Minimum NVDA version supported (e.g. "2018.3.0", minor version is optional)
 	"addon_minimumNVDAVersion": "2023.1.0",
 	# Last NVDA version supported/tested (e.g. "2018.4.0", ideally more recent than minimum version)
-	"addon_lastTestedNVDAVersion": "2024.4.1",
+	"addon_lastTestedNVDAVersion": "2025.1.0",
 	# Add-on update channel (default is None, denoting stable releases,
 	# and for development releases, use "dev".)
 	# Do not change unless you know what you are doing!

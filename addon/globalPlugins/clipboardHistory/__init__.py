@@ -39,6 +39,7 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
 	# Translators: nombre de categoría en el diálogo de gestos de entrada
 	category_name= _('Historial del portapapeles')
 	
+	ignored_keys= ['leftControl', 'rightControl', 'leftShift', 'rightShift', 'NVDA', 'leftAdvanceBar', 'rightAdvanceBar']
 	def __init__(self, *args, **kwargs):
 		super(GlobalPlugin, self).__init__(*args, **kwargs)
 		self.data= []
@@ -64,7 +65,8 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
 		self.monitor.start_monitoring(as_thread=False)
 
 	def getScript(self, gesture):
-		if not self.switch: return globalPluginHandler.GlobalPlugin.getScript(self, gesture)
+		if not self.switch or gesture.mainKeyName in self.ignored_keys:
+			return globalPluginHandler.GlobalPlugin.getScript(self, gesture)
 		script= globalPluginHandler.GlobalPlugin.getScript(self, gesture)
 		if not script:
 			# Translators: Mensaje de historial cerrado
@@ -209,7 +211,12 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
 		def callback(result):
 			if result == wx.ID_OK:
 				self.search_text= get_search.GetValue()
-				self.startSearch()
+				if self.search_text != "":
+					self.startSearch()
+				else:
+					# Translators: Mensaje de Búsqueda cancelada
+					mute(0.3, _('Búsqueda cancelada'))
+					self.finish()
 		gui.runScriptModalDialog(get_search, callback)
 
 	@emptyListDecorator
