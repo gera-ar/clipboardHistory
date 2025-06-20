@@ -39,7 +39,7 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
 	# Translators: nombre de categoría en el diálogo de gestos de entrada
 	category_name= _('Historial del portapapeles')
 	
-	ignored_keys= ['leftControl', 'rightControl', 'leftShift', 'rightShift', 'NVDA', 'leftAdvanceBar', 'rightAdvanceBar', 'ecoBraille', 'routing']
+	ignored_keys= ['leftControl', 'rightControl', 'leftShift', 'rightShift', 'NVDA', 'leftAdvanceBar', 'rightAdvanceBar', 'routing']
 	def __init__(self, *args, **kwargs):
 		super(GlobalPlugin, self).__init__(*args, **kwargs)
 		self.data= []
@@ -349,19 +349,13 @@ escape; desactiva la capa de comandos
 
 	@emptyListDecorator
 	def script_favorite(self, gesture):
-		if self.data[0][self.x][1] == 0:
+		if self.y == 0 and self.data[0][self.x][1] == 0:
 			self.data[0][self.x]= (self.data[0][self.x][0], 1)
+			db.update('UPDATE strings SET favorite=1 WHERE string=?', (self.data[0][self.x][0],))
 			self.data[1].append(self.data[0][self.x])
 			self.data[0].pop(self.x)
-			db.update('UPDATE strings SET favorite=1 WHERE string=?', (self.data[1][self.x][0],))
 			# Translators: Mensaje de marcado como favorito
 			ui.message(_('Marcado como favorito'))
-		else:
-			self.data[1].remove(self.data[0][self.x])
-			self.data[0][self.x]= (self.data[0][self.x][0], 0)
-			db.update('UPDATE strings SET favorite=0 WHERE string=?', (self.data[0][self.x][0],))
-			# Translators: Mensaje de no favorito
-			ui.message(_('No favorito'))
 
 	def terminate(self):
 		if cursor and connect:
