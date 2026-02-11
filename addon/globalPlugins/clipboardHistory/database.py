@@ -15,6 +15,10 @@ if sys.version.startswith("3.11"):
 	sys.path.append(os.path.join(dirAddon, "lib", "_311"))
 	from .lib._311 import sqlite3 as sql
 	sql.__path__.append(os.path.join(dirAddon, "lib", "_311", "sqlite3"))
+elif sys.version.startswith("3.13"):
+	sys.path.append(os.path.join(dirAddon, "lib", "_313"))
+	from .lib._313 import sqlite3 as sql
+	sql.__path__.append(os.path.join(dirAddon, "lib", "_313", "sqlite3"))
 else:
 	sys.path.append(os.path.join(dirAddon, "lib", "_37"))
 	from .lib._37 import sqlite3 as sql

@@ -358,7 +358,7 @@ escape; desactiva la capa de comandos
 			ui.message(_('Marcado como favorito'))
 
 	def terminate(self):
-		if cursor and connect:
+		if db.cursor and db.connect:
 			db.cursor.close()
 			db.connect.close()
 			self.monitor.stop_monitoring()

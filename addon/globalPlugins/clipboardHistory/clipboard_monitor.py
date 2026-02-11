@@ -9,15 +9,18 @@ from ctypes import wintypes
 import threading
 from .database import *
 
-# Definición manual de tipos de datos necesarios
-DWORD = ctypes.c_ulong
-LONG = ctypes.c_long
-ULONG_PTR = ctypes.POINTER(DWORD)
-MAX_PATH = 260
-
-# Constantes y tipos de Windows necesarios
 WM_CLIPBOARDUPDATE = 0x031D
-WNDPROC = ctypes.WINFUNCTYPE(ctypes.c_long, wintypes.HWND, wintypes.UINT, wintypes.WPARAM, wintypes.LPARAM)
+ERROR_CLASS_ALREADY_EXISTS = 1410
+
+user32 = ctypes.WinDLL("user32", use_last_error=True)
+kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+
+try:
+	LRESULT = wintypes.LRESULT
+except AttributeError:
+	LRESULT = ctypes.c_ssize_t
+
+WNDPROC = ctypes.WINFUNCTYPE(LRESULT, wintypes.HWND, wintypes.UINT, wintypes.WPARAM, wintypes.LPARAM)
 
 class WNDCLASS(ctypes.Structure):
 	"""Estructura que define las propiedades de la clase de ventana."""
@@ -45,6 +48,55 @@ class MSG(ctypes.Structure):
 		("pt", wintypes.POINT)
 	]
 
+user32.DefWindowProcW.argtypes = [wintypes.HWND, wintypes.UINT, wintypes.WPARAM, wintypes.LPARAM]
+user32.DefWindowProcW.restype = LRESULT
+
+user32.RegisterClassW.argtypes = [ctypes.POINTER(WNDCLASS)]
+user32.RegisterClassW.restype = wintypes.ATOM
+
+user32.GetClassInfoW.argtypes = [wintypes.HINSTANCE, wintypes.LPCWSTR, ctypes.POINTER(WNDCLASS)]
+user32.GetClassInfoW.restype = wintypes.BOOL
+
+user32.CreateWindowExW.argtypes = [
+	wintypes.DWORD,
+	wintypes.LPCWSTR,
+	wintypes.LPCWSTR,
+	wintypes.DWORD,
+	ctypes.c_int,
+	ctypes.c_int,
+	ctypes.c_int,
+	ctypes.c_int,
+	wintypes.HWND,
+	wintypes.HMENU,
+	wintypes.HINSTANCE,
+	wintypes.LPVOID,
+]
+user32.CreateWindowExW.restype = wintypes.HWND
+
+user32.AddClipboardFormatListener.argtypes = [wintypes.HWND]
+user32.AddClipboardFormatListener.restype = wintypes.BOOL
+
+user32.RemoveClipboardFormatListener.argtypes = [wintypes.HWND]
+user32.RemoveClipboardFormatListener.restype = wintypes.BOOL
+
+user32.GetMessageW.argtypes = [ctypes.POINTER(MSG), wintypes.HWND, wintypes.UINT, wintypes.UINT]
+user32.GetMessageW.restype = wintypes.BOOL
+
+user32.TranslateMessage.argtypes = [ctypes.POINTER(MSG)]
+user32.TranslateMessage.restype = wintypes.BOOL
+
+user32.DispatchMessageW.argtypes = [ctypes.POINTER(MSG)]
+user32.DispatchMessageW.restype = LRESULT
+
+user32.PostQuitMessage.argtypes = [ctypes.c_int]
+user32.PostQuitMessage.restype = None
+
+user32.UnregisterClassW.argtypes = [wintypes.LPCWSTR, wintypes.HINSTANCE]
+user32.UnregisterClassW.restype = wintypes.BOOL
+
+kernel32.GetModuleHandleW.argtypes = [wintypes.LPCWSTR]
+kernel32.GetModuleHandleW.restype = wintypes.HMODULE
+
 class ClipboardMonitor:
 	"""Clase para monitorear los cambios en el portapapeles de Windows."""
 
@@ -54,73 +106,92 @@ class ClipboardMonitor:
 		self.msg = MSG()
 		self.running = False
 		self.thread = None
-		self.wnd_proc_instance = WNDPROC(self.wnd_proc)  # Mantener una referencia al WNDPROC
+		self.wnd_proc_instance = WNDPROC(self.wnd_proc)
+
+	def _registrar_clase_ventana(self, class_name, h_instance):
+		"""Registra la clase de ventana o la reutiliza si ya existe."""
+		wc = WNDCLASS()
+		wc.lpfnWndProc = self.wnd_proc_instance
+		wc.lpszClassName = class_name
+		wc.hInstance = h_instance
+		wc.hIcon = None
+		wc.hCursor = None
+		wc.hbrBackground = None
+		existe = user32.GetClassInfoW(h_instance, class_name, ctypes.byref(wc))
+		if existe:
+			return
+		atom = user32.RegisterClassW(ctypes.byref(wc))
+		if atom:
+			return
+		err = ctypes.get_last_error()
+		if err == ERROR_CLASS_ALREADY_EXISTS:
+			return
+		raise ctypes.WinError(err)
 
 	def create_window(self):
 		"""Crea una ventana oculta que recibe mensajes del portapapeles."""
-		wc = WNDCLASS()
-		wc.lpfnWndProc = self.wnd_proc_instance  # Usar la instancia de WNDPROC
-		wc.lpszClassName = "ClipboardListener"
-		wc.hInstance = ctypes.windll.kernel32.GetModuleHandleW(None)
-		wc.hIcon = wc.hCursor = wc.hbrBackground = None
-		# Verificar si la clase ya está registrada
-		if not ctypes.windll.user32.RegisterClassW(ctypes.byref(wc)):
-			if not ctypes.windll.user32.RegisterClassW(ctypes.byref(wc)):
-				raise ctypes.WinError()
-		self.hwnd = ctypes.windll.user32.CreateWindowExW(0, wc.lpszClassName, "Clipboard Monitor", 0, 0, 0, 0, 0, None, None, wc.hInstance, None)
+		class_name = "ClipboardListener"
+		h_instance = kernel32.GetModuleHandleW(None)
+		self._registrar_clase_ventana(class_name, h_instance)
+		self.hwnd = user32.CreateWindowExW(0, class_name, "Clipboard Monitor", 0, 0, 0, 0, 0, None, None, h_instance, None)
+		if not self.hwnd:
+			raise ctypes.WinError(ctypes.get_last_error())
 
 	def wnd_proc(self, hwnd, msg, wParam, lParam):
 		"""Procedimiento de ventana que maneja los mensajes recibidos."""
-		if msg == WM_CLIPBOARDUPDATE:
-			try:
-				content= api.getClipData()
-			except OSError:
-				content= None
-			if content is None or content == '':
-				# Si el contenido es None o está vacío, devolver el control a DefWindowProcW
-				return ctypes.windll.user32.DefWindowProcW(hwnd, msg, wParam, lParam)
-			else:
-				rs= db.get('SELECT string, favorite FROM strings WHERE string=?', 'one', (content,))
-				if rs:
-					db.delete('DELETE FROM strings WHERE string=?', (content,))
-					favorite= rs[1]
-				else:
-					favorite= 0
-				db.insert('INSERT INTO strings (string, favorite) VALUES (?, ?)', (content, favorite))
-				counter= db.get('SELECT id FROM strings', 'all')
-				max_elements= db.get('SELECT max_elements FROM settings', 'one')
-				if max_elements[0] != 0 and len(counter) > max_elements[0]:
-					db.delete('DELETE FROM strings WHERE id=?', (counter[0][0],))
-
-		return ctypes.windll.user32.DefWindowProcW(hwnd, msg, wParam, lParam)
+		if msg != WM_CLIPBOARDUPDATE:
+			return user32.DefWindowProcW(hwnd, msg, wParam, lParam)
+		try:
+			content = api.getClipData()
+		except OSError:
+			content = None
+		if not content:
+			return user32.DefWindowProcW(hwnd, msg, wParam, lParam)
+		rs = db.get("SELECT string, favorite FROM strings WHERE string=?", "one", (content,))
+		if rs:
+			db.delete("DELETE FROM strings WHERE string=?", (content,))
+			favorite = rs[1]
+		else:
+			favorite = 0
+		db.insert("INSERT INTO strings (string, favorite) VALUES (?, ?)", (content, favorite))
+		counter = db.get("SELECT id FROM strings", "all")
+		max_elements = db.get("SELECT max_elements FROM settings", "one")
+		if max_elements and max_elements[0] != 0 and len(counter) > max_elements[0]:
+			db.delete("DELETE FROM strings WHERE id=?", (counter[0][0],))
+		return user32.DefWindowProcW(hwnd, msg, wParam, lParam)
 
 	def run(self):
 		"""Cuerpo principal del monitoreo, diseñado para ejecutarse en un hilo."""
 		self.create_window()
-		ctypes.windll.user32.AddClipboardFormatListener(self.hwnd)
+		ok = user32.AddClipboardFormatListener(self.hwnd)
+		if not ok:
+			raise ctypes.WinError(ctypes.get_last_error())
 		self.running = True
-		while self.running and ctypes.windll.user32.GetMessageW(ctypes.byref(self.msg), self.hwnd, 0, 0):
-			ctypes.windll.user32.TranslateMessage(ctypes.byref(self.msg))
-			ctypes.windll.user32.DispatchMessageW(ctypes.byref(self.msg))
+		while self.running:
+			gm = user32.GetMessageW(ctypes.byref(self.msg), self.hwnd, 0, 0)
+			if gm == 0:
+				break
+			if gm == -1:
+				raise ctypes.WinError(ctypes.get_last_error())
+			user32.TranslateMessage(ctypes.byref(self.msg))
+			user32.DispatchMessageW(ctypes.byref(self.msg))
 
 	def start_monitoring(self, as_thread=False):
 		"""Inicia el monitoreo del portapapeles, opcionalmente en un nuevo hilo."""
-		if as_thread:
-			self.thread = threading.Thread(target=self.run, daemon=True)
-			self.thread.start()
-		else:
+		if not as_thread:
 			self.run()
+			return
+		self.thread = threading.Thread(target=self.run, daemon=True)
+		self.thread.start()
 
 	def stop_monitoring(self):
 		"""Detiene el monitoreo del portapapeles."""
 		self.running = False
-		ctypes.windll.user32.PostQuitMessage(0)
+		user32.PostQuitMessage(0)
+		if self.hwnd:
+			user32.RemoveClipboardFormatListener(self.hwnd)
 		if self.thread:
 			self.thread.join()
-		
-		# Desregistrar la clase de ventana
-		wc = WNDCLASS()
-		wc.lpszClassName = "ClipboardListener"
-		hInstance = ctypes.windll.kernel32.GetModuleHandleW(None)
-		if ctypes.windll.user32.GetClassInfoW(hInstance, wc.lpszClassName, ctypes.byref(wc)):
-			ctypes.windll.user32.UnregisterClassW(wc.lpszClassName, hInstance)
+		class_name = "ClipboardListener"
+		h_instance = kernel32.GetModuleHandleW(None)
+		user32.UnregisterClassW(class_name, h_instance)
