@@ -26,6 +26,24 @@ import addonHandler
 # Lína de traducción
 addonHandler.initTranslation()
 
+def truncate_for_speech(text, max_chars=7000, threshold=8000):
+	"""
+	Trunca el texto solo si excede el umbral especificado.
+	
+	Args:
+		text: El texto a evaluar
+		max_chars: Longitud máxima después del truncamiento (default: 7000)
+		threshold: Umbral para iniciar el truncamiento (default: 8000)
+	
+	Returns:
+		Texto truncado si excede el umbral, texto original en caso contrario
+	"""
+	if len(text) > threshold:
+		# Translators: Sufijo que indica que el texto fue truncado
+		suffix = _('... [truncado para prevenir cuelgues]')
+		return text[:max_chars] + suffix
+	return text
+
 def disableInSecureMode(decoratedCls):
 	if globalVars.appArgs.secure:
 		return globalPluginHandler.GlobalPlugin
@@ -181,10 +199,11 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
 		self.speak()
 
 	def speak(self):
+		content = truncate_for_speech(self.data[self.y][self.x][0])
 		if self.number:
-			ui.message('{}; {}'.format(self.x+1, self.data[self.y][self.x][0]))
+			ui.message('{}; {}'.format(self.x+1, content))
 		else:
-			ui.message(self.data[self.y][self.x][0])
+			ui.message(content)
 
 	@emptyListDecorator
 	def script_pasteItem(self, gesture):
@@ -231,14 +250,16 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
 		for i in range(self.x + 1, len(self.data[self.y])):
 			if self.search_text.lower() in self.data[self.y][i][0].lower():
 				self.x = i
-				mute(0.2, '{}; {}'.format(self.x + 1, self.data[self.y][self.x][0]))
+				content = truncate_for_speech(self.data[self.y][self.x][0])
+				mute(0.2, '{}; {}'.format(self.x + 1, content))
 				self.bindGestures(self.__newGestures)
 				return
 
 		for i in range(0, self.x + 1):
 			if self.search_text.lower() in self.data[self.y][i][0].lower():
 				self.x = i
-				mute(0.2, '{}; {}'.format(self.x + 1, self.data[self.y][self.x][0]))
+				content = truncate_for_speech(self.data[self.y][self.x][0])
+				mute(0.2, '{}; {}'.format(self.x + 1, content))
 				self.bindGestures(self.__newGestures)
 				return
 
@@ -299,7 +320,8 @@ escape; desactiva la capa de comandos
 				index= get_search.GetValue()
 				if index.isdigit() and int(index) > 0 and int(index) <= len(self.data):  # Ajuste aquí
 					self.x= int(index)-1
-					mute(0.5, '{}; {}'.format(index, self.data[self.y][self.x][0]))
+					content = truncate_for_speech(self.data[self.y][self.x][0])
+					mute(0.5, '{}; {}'.format(index, content))
 					self.bindGestures(self.__newGestures)
 				else:
 					# Translators: Mensaje de aviso para datos incorrectos o número fuera de rango
@@ -358,7 +380,7 @@ escape; desactiva la capa de comandos
 			ui.message(_('Marcado como favorito'))
 
 	def terminate(self):
-		if cursor and connect:
+		if db.cursor and db.connect:
 			db.cursor.close()
 			db.connect.close()
 			self.monitor.stop_monitoring()
