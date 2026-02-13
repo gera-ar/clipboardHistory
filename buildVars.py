@@ -26,7 +26,7 @@ addon_info = {
 	"addon_description": _("""Módulo global que guarda el historial del portapapeles de Windows en una base de datos local, permitiendo la persistencia y la gestión a través de una interfaz invisible con opciones avanzadas, como a través de una interfaz gráfica simplificada.
 Permite buscar, visualizar, obtener datos del texto, gestionar favoritos, pegar contenido en el foco,exportar e importar la base de datos."""),
 	# version
-	"addon_version": "1.3",
+	"addon_version": "1.4",
 	# Author(s)
 	"addon_author": "Gerardo Kessler <gera.ar@yahoo.com>",
 	# URL for the add-on documentation support
