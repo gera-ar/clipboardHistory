@@ -318,7 +318,7 @@ escape; desactiva la capa de comandos
 		def callback(result):
 			if result == wx.ID_OK:
 				index= get_search.GetValue()
-				if index.isdigit() and int(index) > 0 and int(index) <= len(self.data):  # Ajuste aquí
+				if index.isdigit() and int(index) > 0 and int(index) <= len(self.data[self.y]):
 					self.x= int(index)-1
 					content = truncate_for_speech(self.data[self.y][self.x][0])
 					mute(0.5, '{}; {}'.format(index, content))
