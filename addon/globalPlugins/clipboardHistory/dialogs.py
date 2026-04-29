@@ -63,6 +63,8 @@ class Settings(wx.Dialog):
 		export_button = wx.Button(panel, label=_('&Exportar base de datos'))
 		# Translators: Etiqueta del botón para importar una base de datos
 		import_button = wx.Button(panel, label=_('&Importar base de datos'))
+		# Translators: Texto del botón para limpiar caché
+		clear_cache_button = wx.Button(panel, label=_('Limpiar &caché de imágenes'))
 		# Translators: Texto del botón para guardar los cambios
 		save_button = wx.Button(panel, label=_('&Guardar cambios'))
 		# Translators: Texto del botón cancelar
@@ -74,6 +76,7 @@ class Settings(wx.Dialog):
 		cancel_button.Bind(wx.EVT_BUTTON, self.onCancel)
 		export_button.Bind(wx.EVT_BUTTON, self.onExport)
 		import_button.Bind(wx.EVT_BUTTON, self.onImport)
+		clear_cache_button.Bind(wx.EVT_BUTTON, self.onClearCache)
 		# Maneja el cierre con la tecla Escape y otras teclas.
 		self.Bind(wx.EVT_CHAR_HOOK, self.onKeyPress)
 
@@ -90,6 +93,7 @@ class Settings(wx.Dialog):
 		# Añadir botones al sizer horizontal
 		h_sizer.Add(import_button, 0, wx.ALL, 10)
 		h_sizer.Add(export_button, 0, wx.ALL, 10)
+		h_sizer.Add(clear_cache_button, 0, wx.ALL, 10)
 		h_sizer.Add(save_button, 0, wx.ALL, 10)
 		h_sizer.Add(cancel_button, 0, wx.ALL, 10)
 
@@ -99,6 +103,24 @@ class Settings(wx.Dialog):
 		panel.SetSizer(v_sizer)
 		v_sizer.Fit(self)
 		self.CenterOnScreen()
+
+	def onClearCache(self, event):
+		import globalVars
+		import os
+		import shutil
+		media_dir = os.path.join(globalVars.appArgs.configPath, 'clipboard_history_media')
+		if os.path.exists(media_dir):
+			try:
+				shutil.rmtree(media_dir)
+				os.makedirs(media_dir)
+			except OSError:
+				pass
+		db.delete('DELETE FROM strings WHERE type=2')
+		# Translators: Mensaje de caché limpiado
+		mute(0.3, _('Caché limpiado'))
+		self.frame.dialogs= False
+		self.Destroy()
+		gui.mainFrame.postPopup()
 
 	def onSave(self, event):
 		sounds= self.sounds_checkbox.GetValue()
@@ -127,13 +149,31 @@ class Settings(wx.Dialog):
 		gui.mainFrame.postPopup()
 
 	def onExport(self, event):
+		# Translators: Título del diálogo de advertencia de exportación
+		warn_modal = wx.MessageDialog(self, _('Atención: Los binarios en caché (imágenes y archivos) no se incluirán en la exportación y sus referencias serán eliminadas en el archivo resultante por motivos de seguridad y portabilidad. ¿Deseas continuar?'), _('Atención'), wx.YES_NO | wx.ICON_WARNING)
+		if warn_modal.ShowModal() == wx.ID_NO: return
+		
 		# Translators: Título del diálogo de exportación
 		export_dialog= wx.FileDialog(self, _('Exportar base de datos'), '', 'clipboard_history', '', wx.FD_SAVE | wx.FD_OVERWRITE_PROMPT)
 		if export_dialog.ShowModal() == wx.ID_CANCEL: return
 		file_path= export_dialog.GetPath()
-		shutil.copy(os.path.join(root_path, 'clipboard_history'), file_path)
-		# Translators: Aviso de base de datos exportada
-		mute(0.5, _('Base de datos exportada correctamente'))
+		
+		# Crear una base de datos temporal sin binarios para exportar
+		try:
+			temp_path = file_path + ".tmp"
+			shutil.copy(os.path.join(root_path, 'clipboard_history'), temp_path)
+			temp_cn = sql.connect(temp_path)
+			temp_cr = temp_cn.cursor()
+			temp_cr.execute('DELETE FROM strings WHERE type != 0')
+			temp_cn.commit()
+			temp_cn.close()
+			if os.path.exists(file_path): os.remove(file_path)
+			os.rename(temp_path, file_path)
+			# Translators: Aviso de base de datos exportada
+			mute(0.5, _('Base de datos exportada correctamente (solo texto)'))
+		except Exception as e:
+			mute(0.5, _('Error al exportar: {}').format(str(e)))
+			
 		export_dialog.Destroy()
 		self.frame.dialogs= False
 		self.Destroy()
@@ -147,40 +187,27 @@ class Settings(wx.Dialog):
 			try:
 				cn= sql.connect(file_path)
 				cr= cn.cursor()
-				cr.execute('SELECT string FROM strings')
+				# Solo importamos texto (type 0)
+				cr.execute('SELECT string, favorite, type, data FROM strings WHERE type = 0')
 				imported_strings= cr.fetchall()
 				cn.close()
 				
-				existing_strings= db.get('SELECT string FROM strings', 'all')
-				existing_set= set(existing_strings)
+				existing_strings= db.get('SELECT string FROM strings WHERE type = 0', 'all')
+				existing_set= set([s[0] for s in existing_strings])
 				
-				# Filtramos las cadenas importadas para incluir solo las que no están en la base de datos actual
-				unique_strings= [s for s in imported_strings if s not in existing_set]
+				unique_strings= [s for s in imported_strings if s[0] not in existing_set]
 				
 				if len(unique_strings) > 0:
-					# Translators: Texto del diálogo que indica la cantidad de elementos nuevos y pregunta por el añadido a la base de datos
-					modal = wx.MessageDialog(None, _('Hay {} elementos diferentes en el archivo de respaldo. ¿Quieres añadirlos a la base de datos?').format(len(unique_strings)), _('Atención'), wx.YES_NO | wx.NO_DEFAULT | wx.ICON_QUESTION)
+					# Translators: Texto del diálogo de importación
+					modal = wx.MessageDialog(None, _('Hay {} elementos de texto diferentes en el archivo. ¿Quieres añadirlos? (Los binarios han sido omitidos)').format(len(unique_strings)), _('Atención'), wx.YES_NO | wx.ICON_QUESTION)
 					if modal.ShowModal() == wx.ID_YES:
-						unique_strings.extend(existing_strings)
-						db.delete('DELETE FROM strings')
-						db.many('INSERT INTO strings (string, favorite) VALUES (?, 0)', unique_strings)
-						# Translators: Mensaje de aviso de los elementos agregados
-						mute(0.5, _('{} elementos agregados').format(len(unique_strings) - len(existing_strings)))
+						db.many('INSERT INTO strings (string, favorite, type, data) VALUES (?, ?, ?, ?)', unique_strings)
+						# Translators: Mensaje de elementos agregados
+						mute(0.5, _('{} elementos agregados').format(len(unique_strings)))
 				else:
-					# Translators: Mensaje de aviso que indica que no hay nuevos elementos para añadir
-					mute(0.3, _('No hay nuevos elementos para agregar'))
-			except sql.DatabaseError as e:
-				# Translators: Mensaje de aviso que indica que no se pudo acceder a la base de datos
-				mute(0.4, _('Error al intentar acceder a la base de datos de respaldo. El archivo no es válido o está corrupto'))
+					mute(0.3, _('No hay nuevos elementos de texto para agregar'))
 			except Exception as e:
-				# Translators: Mensaje que avisa de un error inesperado
-				mute(0.4, _('Error inesperado: {}').format(str(e)))
-			finally:
-				if 'cn' in locals() and cn:
-					cn.close()
-			self.frame.dialogs= False
-			self.Destroy()
-			gui.mainFrame.postPopup()
+				mute(0.4, _('Error al importar: {}').format(str(e)))
 
 class Delete(wx.Dialog):
 	def __init__(self, parent, frame):
@@ -204,6 +231,10 @@ class Delete(wx.Dialog):
 		# Translators: Texto de la casilla de verificación para la eliminación de los favoritos
 		self.favorites_checkbox= wx.CheckBox(panel, label=_('Incluir los &favoritos en la eliminación'))
 		
+		# Translators: Casilla para borrar binarios del caché
+		self.cache_checkbox= wx.CheckBox(panel, label=_('Borrar también &binarios en caché'))
+		self.cache_checkbox.SetValue(True)
+		
 		# Botones para eliminar y cancelar
 		# Translators: Etiqueta del botón eliminar
 		delete_button = wx.Button(panel, label=_('&Eliminar'))
@@ -219,6 +250,7 @@ class Delete(wx.Dialog):
 		main_sizer.Add(static_text, 0, wx.ALL, 10)
 		main_sizer.Add(self.split_ctrl, 0, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.BOTTOM, 10)
 		main_sizer.Add(self.favorites_checkbox, 0, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.BOTTOM, 10)
+		main_sizer.Add(self.cache_checkbox, 0, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.BOTTOM, 10)
 		button_sizer.Add(delete_button, 1, wx.EXPAND | wx.RIGHT, 5)  # Añade el botón con expansión
 		button_sizer.Add(cancel_button, 1, wx.EXPAND | wx.LEFT, 5)   # Añade el botón con expansión
 		
@@ -240,16 +272,34 @@ class Delete(wx.Dialog):
 	def onDelete(self, event):
 		num= self.split_ctrl.GetValue()
 		favorites= self.favorites_checkbox.GetValue()
+		delete_cache = self.cache_checkbox.GetValue()
+		
 		if num == len(self.counter):
 			if favorites:
-				db.delete('DELETE FROM strings')
+				items = db.get('SELECT id, type, data FROM strings', 'all')
 			else:
-				db.delete('DELETE FROM strings WHERE favorite=0')
+				items = db.get('SELECT id, type, data FROM strings WHERE favorite=0', 'all')
 		else:
 			if favorites:
-				db.delete('DELETE FROM strings WHERE id IN (SELECT id FROM strings ORDER BY id ASC LIMIT ?)', (num,))
+				items = db.get('SELECT id, type, data FROM strings ORDER BY id ASC LIMIT ?', 'all', (num,))
 			else:
-				db.delete('DELETE FROM strings WHERE id IN (SELECT id FROM strings WHERE favorite = 0 ORDER BY id ASC LIMIT ?)', (num,))
+				items = db.get('SELECT id, type, data FROM strings WHERE favorite = 0 ORDER BY id ASC LIMIT ?', 'all', (num,))
+				
+		if delete_cache:
+			import globalVars
+			import os
+			media_dir = os.path.join(globalVars.appArgs.configPath, 'clipboard_history_media')
+			for item in items:
+				if item[1] == 2 and item[2]:
+					img_path = os.path.join(media_dir, item[2])
+					if os.path.exists(img_path):
+						try: os.remove(img_path)
+						except OSError: pass
+						
+		ids = [(item[0],) for item in items]
+		if ids:
+			db.many('DELETE FROM strings WHERE id=?', ids)
+			
 		# Translators: Mensaje de aviso de los elementos eliminados
 		mute(0.3, _('Elementos eliminados'))
 		self.frame.dialogs= False
@@ -307,18 +357,23 @@ class Gui(wx.Dialog):
 
 	def update(self):
 		self.listbox.Clear()
-		strings= db.get('SELECT string FROM strings ORDER BY id DESC', 'all')
+		strings= db.get('SELECT string, favorite, type, data, id FROM strings ORDER BY id DESC', 'all')
+		self.listbox_data = strings
 		if len(strings) > 0:
 			choices = [e[0] for e in strings]
 			self.listbox.Append(choices)
 			if self.listbox.GetCount() > 0:
 				self.listbox.SetSelection(0)
-				self.textctrl.SetValue(self.listbox.GetStringSelection())
+				self.onListBoxSelection(None)
 
 	def onListBoxSelection(self, event):
-		selected= self.listbox.GetStringSelection()
-		if selected:
-			self.textctrl.SetValue(selected)
+		index = self.listbox.GetSelection()
+		if index != wx.NOT_FOUND:
+			item = self.listbox_data[index]
+			if item[2] == 1:
+				self.textctrl.SetValue(item[3].replace('|', '\n'))
+			else:
+				self.textctrl.SetValue(item[0])
 
 	def onKeyPressGui(self, event):
 		keycode = event.GetKeyCode()
@@ -333,29 +388,39 @@ class Gui(wx.Dialog):
 			self.Destroy()
 			gui.mainFrame.postPopup()
 		elif keycode == wx.WXK_RETURN:
-			selected = self.listbox.GetStringSelection()
-			if selected:
-				self.textctrl.SetValue(selected)
-				clipboard_data = wx.TextDataObject(selected)
-				if wx.TheClipboard.Open():
-					wx.TheClipboard.SetData(clipboard_data)
+			index = self.listbox.GetSelection()
+			if index != wx.NOT_FOUND:
+				item = self.listbox_data[index]
+				if self.frame._copy_item_to_clipboard(item):
 					# Translators: verbaliza texto copiado
 					mute(0.3, _('Copiado'))
-					wx.TheClipboard.Close()
-					self.Destroy()
-					gui.mainFrame.postPopup()
+				else:
+					ui.message(_('Binario no encontrado'))
+				self.Destroy()
+				gui.mainFrame.postPopup()
 		elif keycode == wx.WXK_DELETE:
 			index = self.listbox.GetSelection()
-			string = self.listbox.GetStringSelection()
 			total = self.listbox.GetCount()
 			if index != wx.NOT_FOUND:
+				item = self.listbox_data[index]
 				self.listbox.Delete(index)
-				db.delete('DELETE FROM strings WHERE string=?', (string,))
+				del self.listbox_data[index]
+				
+				db.delete('DELETE FROM strings WHERE id=?', (item[4],))
+				if item[2] == 2 and item[3]:
+					import globalVars
+					import os
+					img_path = os.path.join(globalVars.appArgs.configPath, 'clipboard_history_media', item[3])
+					if os.path.exists(img_path):
+						try: os.remove(img_path)
+						except OSError: pass
+						
 				if total > 1:
 					if index > 0:
 						self.listbox.SetSelection(index - 1)
 					else:
 						self.listbox.SetSelection(index)
+					self.onListBoxSelection(None)
 				else:
 					# Translators: verbaliza lista vacía
 					ui.message(_('Lista vacía'))
@@ -370,6 +435,14 @@ class Gui(wx.Dialog):
 			)
 			if modal.ShowModal() == wx.ID_YES:
 				db.delete('DELETE FROM strings')
+				import globalVars
+				import os
+				media_dir = os.path.join(globalVars.appArgs.configPath, 'clipboard_history_media')
+				if os.path.exists(media_dir):
+					try:
+						import shutil
+						shutil.rmtree(media_dir)
+					except OSError: pass
 				self.Destroy()
 				gui.mainFrame.postPopup()
 				# Translators: mensaje de base de datos eliminada

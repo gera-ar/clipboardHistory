@@ -34,14 +34,18 @@ class DB:
 		self.connect= sql.connect(os.path.join(root_path, 'clipboard_history'), check_same_thread= False)
 		self.cursor= self.connect.cursor()
 		self.cursor.execute('PRAGMA TABLE_INFO(strings)')
-		if len(self.cursor.fetchall()) == 0:
+		cols = [col[1] for col in self.cursor.fetchall()]
+		if len(cols) == 0:
 			self.initialStructure()
 		else:
+			if 'type' not in cols:
+				self.cursor.execute('ALTER TABLE strings ADD COLUMN type INTEGER DEFAULT 0')
+				self.cursor.execute('ALTER TABLE strings ADD COLUMN data TEXT')
 			self.cursor.execute('VACUUM')
 			self.connect.commit()
 
 	def initialStructure(self):
-		self.cursor.execute('CREATE TABLE strings (string TEXT, favorite BOOLEAN, id INTEGER PRIMARY KEY AUTOINCREMENT)')
+		self.cursor.execute('CREATE TABLE strings (string TEXT, favorite BOOLEAN, id INTEGER PRIMARY KEY AUTOINCREMENT, type INTEGER DEFAULT 0, data TEXT)')
 		self.cursor.execute('CREATE TABLE settings (sounds BOOLEAN, max_elements INTEGER, number BOOLEAN)')
 		# Translators: Cadena para la base de datos inicial con un texto de prueba
 		new_content= _('Texto de prueba')
@@ -49,7 +53,7 @@ class DB:
 			new_content= api.getClipData()
 		except OSError:
 			pass
-		self.cursor.execute('INSERT INTO strings (string, favorite) VALUES (?, ?)', (new_content, 0))
+		self.cursor.execute('INSERT INTO strings (string, favorite, type, data) VALUES (?, ?, ?, ?)', (new_content, 0, 0, None))
 		self.cursor.execute('INSERT INTO settings (sounds, max_elements, number) VALUES (1, 250, 1)')
 		self.connect.commit()
 

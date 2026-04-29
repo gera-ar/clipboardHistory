@@ -121,9 +121,8 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
 	)
 	def script_viewData(self, gesture):
 		if self.switch or self.dialogs: return
-		data= db.get('SELECT string, favorite FROM strings WHERE favorite = 0 ORDER BY id DESC', 'all')
-		# favorites= [x for x in data if x[1] == 1]
-		favorites= db.get('SELECT string, favorite FROM strings WHERE favorite = 1 ORDER BY id DESC', 'all')
+		data= db.get('SELECT string, favorite, type, data, id FROM strings WHERE favorite = 0 ORDER BY id DESC', 'all')
+		favorites= db.get('SELECT string, favorite, type, data, id FROM strings WHERE favorite = 1 ORDER BY id DESC', 'all')
 		self.data= [data, favorites]
 		settings= db.get('SELECT sounds, max_elements, number FROM settings', 'one')
 		self.sounds, self.max_elements, self.number= settings[0], settings[1], settings[2]
@@ -162,35 +161,70 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
 				self.play('click')
 		self.speak()
 
+	def _copy_item_to_clipboard(self, item):
+		string_val, favorite, type_val, data_val, item_id = item[0], item[1], item[2], item[3], item[4]
+		if type_val == 0:
+			api.copyToClip(string_val)
+			return True
+		elif type_val == 1:
+			files = data_val.split('|')
+			exists = [f for f in files if os.path.exists(f)]
+			if not exists:
+				return False
+			return self.monitor.set_files(exists)
+		elif type_val == 2:
+			img_path = os.path.join(globalVars.appArgs.configPath, 'clipboard_history_media', data_val)
+			if not os.path.exists(img_path):
+				return False
+			return self.monitor.set_image(img_path)
+		return False
+
 	@emptyListDecorator
 	def script_copyItem(self, gesture):
-		api.copyToClip(self.data[self.y][self.x][0])
+		item = self.data[self.y][self.x]
+		if not self._copy_item_to_clipboard(item):
+			# Translators: Mensaje de binario no encontrado
+			ui.message(_('Binario no encontrado'))
+			return
 		# Translators: Mensaje de elemento copiado
 		ui.message(_('Elemento copiado'))
 		self.finish('copy')
 
 	@emptyListDecorator
 	def script_viewItem(self, gesture):
+		item = self.data[self.y][self.x]
+		type_val = item[2]
+		if type_val == 1:
+			content_to_show = item[3].replace('|', '\n')
+		else:
+			content_to_show = item[0]
 		# Translators: Título de la ventana con el contenido
-		secureBrowseableMessage(self.data[self.y][self.x][0], _('Contenido'))
+		secureBrowseableMessage(content_to_show, _('Contenido'))
 		self.finish('open')
 		# Translators: Mensaje que avisa que se está mostrando el contenido
 		mute(0.1, _('Mostrando el contenido'))
 
 	@emptyListDecorator
 	def script_deleteItem(self, gesture):
+		item = self.data[self.y][self.x]
+		item_id = item[4]
+		
+		db.delete('DELETE FROM strings WHERE id=?', (item_id,))
+		
+		if item[2] == 2 and item[3]:
+			img_path = os.path.join(globalVars.appArgs.configPath, 'clipboard_history_media', item[3])
+			if os.path.exists(img_path):
+				try:
+					os.remove(img_path)
+				except OSError:
+					pass
+					
+		self.data[self.y].pop(self.x)
 		if self.y == 1:
-			db.delete('DELETE FROM strings WHERE string=?', (self.data[1][self.x][0],))
-			self.data[1].pop(self.x)
 			# Translators: Mensaje de favorito eliminado
 			ui.message(_('Eliminado de favoritos'))
 			return
-		try:
-			self.data[1].remove(self.data[0][self.x])
-		except ValueError:
-			pass
-		db.delete('DELETE FROM strings WHERE string=?', (self.data[0][self.x][0],))
-		self.data[0].pop(self.x)
+			
 		if self.sounds: self.play('delete')
 		if len(self.data[self.y]) < 1:
 			ui.message(self.empty)
@@ -207,7 +241,11 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
 
 	@emptyListDecorator
 	def script_pasteItem(self, gesture):
-		api.copyToClip(self.data[self.y][self.x][0])
+		item = self.data[self.y][self.x]
+		if not self._copy_item_to_clipboard(item):
+			# Translators: Mensaje de binario no encontrado
+			ui.message(_('Binario no encontrado'))
+			return
 		self.finish('paste')
 		# Translators: Aviso de mensaje pegado
 		mute(0.2, _('Pegado'))
@@ -372,9 +410,12 @@ escape; desactiva la capa de comandos
 	@emptyListDecorator
 	def script_favorite(self, gesture):
 		if self.y == 0 and self.data[0][self.x][1] == 0:
-			self.data[0][self.x]= (self.data[0][self.x][0], 1)
-			db.update('UPDATE strings SET favorite=1 WHERE string=?', (self.data[0][self.x][0],))
-			self.data[1].append(self.data[0][self.x])
+			item = list(self.data[0][self.x])
+			item[1] = 1
+			item_tuple = tuple(item)
+			self.data[0][self.x] = item_tuple
+			db.update('UPDATE strings SET favorite=1 WHERE id=?', (item_tuple[4],))
+			self.data[1].append(item_tuple)
 			self.data[0].pop(self.x)
 			# Translators: Mensaje de marcado como favorito
 			ui.message(_('Marcado como favorito'))

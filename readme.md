@@ -4,13 +4,22 @@ Por  [gera Kessler](http://gera.ar)
 
 Con la inestimable colaboración de Héctor Benítez.
 
-Este complemento permite gestionar un historial del portapapeles persistiéndolo en una base de datos local, lo que permite conservar los textos aún cuando el sistema se reinicia.
+Este complemento permite gestionar un historial del portapapeles persistiéndolo en una base de datos local, lo que permite conservar los textos y archivos binarios aún cuando el sistema se reinicia.
 Añade comandos para la exploración del historial, funciones de búsqueda, conteo, favoritos, backup, y visualización de los elementos.
 A parte de la interacción a través de la capa de comandos con funciones avanzadas, se puede utilizar una versión gráfica sencilla para quienes no quieran compicaciones.
 
 Al instalarlo por primera vez e iniciar NVDA, se crea el archivo "clipboard_history" que contiene la base de datos. Este archivo se aloja en la raíz de la carpeta nvda en los directorios de la configuración del usuario.
-También se crea un escuchador (listener) para capturar los cambios del portapapeles, y actualizar la base de datos cuando haya contenido de texto nuevo.
+También se crea una carpeta "clipboard_history_media" para almacenar las imágenes copiadas directamente al portapapeles.
+También se crea un escuchador (listener) para capturar los cambios del portapapeles, y actualizar la base de datos cuando haya contenido de texto, archivos o imágenes.
 El historial no guarda duplicaciones para evitar un crecimiento innecesario de la base de datos. al copiar un texto existente, este se copia en la primera posición de la lista eliminando la anterior.
+
+### Soporte de Binarios (Archivos e Imágenes)
+
+El complemento ahora puede capturar archivos copiados desde el explorador y capturas de pantalla o imágenes.
+* **Archivos**: Se guarda la ruta del archivo. Al recuperar el elemento, el complemento intentará copiar el archivo original. Si el archivo ya no existe, NVDA anunciará "Binario no encontrado".
+* **Imágenes**: Las imágenes sin ruta (como capturas de pantalla) se guardan en una caché local.
+
+**Nota sobre Exportación/Importación**: Por motivos de seguridad y portabilidad, los binarios (archivos e imágenes en caché) **no se incluyen** en los procesos de exportación e importación. Solo se transferirán los elementos de texto plano entre diferentes instalaciones de NVDA.
 
 Hay 2 funciones asignables desde el diálogo gestos de entrada, categoría clipboardHistory. A saber
 
@@ -75,7 +84,11 @@ En ella puede modificarse lo siguiente:
 ### Número de cadenas a guardar
 
 Aquí se puede especificar hasta cuantos elementos se van a guardar en la base de datos. Cuando se supere este número, se van eliminando las entradas antiguas desde la última.
-Si al configurar un número máximo de elementos la base de datos contiene una cantidad mayor a ese valor, cuando se ingresen nuevos datos se eliminarán las entradas antiguas pero manteniendo el número actual de elementos para que el usuario pueda seleccionar cuales eliminar.
+Si se elimina una imagen de la caché, el archivo físico también será borrado automáticamente.
+
+### Limpiar caché de imágenes
+
+Este botón permite eliminar todas las imágenes guardadas en la carpeta de medios y limpiar sus referencias en la base de datos.
 
 ### Sonidos
 
