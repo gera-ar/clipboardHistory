@@ -164,7 +164,9 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
 	def _copy_item_to_clipboard(self, item):
 		string_val, favorite, type_val, data_val, item_id = item[0], item[1], item[2], item[3], item[4]
 		if type_val == 0:
-			api.copyToClip(string_val)
+			# Si es texto, preferimos data_val (contenido real) sobre string_val (etiqueta)
+			content = data_val if data_val is not None else string_val
+			api.copyToClip(content)
 			return True
 		elif type_val == 1:
 			files = data_val.split('|')
@@ -196,6 +198,9 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
 		type_val = item[2]
 		if type_val == 1:
 			content_to_show = item[3].replace('|', '\n')
+		elif type_val == 0:
+			# Para texto mostramos el contenido real
+			content_to_show = item[3] if item[3] is not None else item[0]
 		else:
 			content_to_show = item[0]
 		# Translators: Título de la ventana con el contenido
@@ -317,6 +322,47 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
 		gui.mainFrame.prePopup()
 		self.delete_dialog.Show()
 
+	@emptyListDecorator
+	def script_renameItem(self, gesture):
+		self.finish()
+		item = self.data[self.y][self.x]
+		item_id = item[4]
+		current_name = item[0]
+		
+		get_name = wx.TextEntryDialog(
+			gui.mainFrame,
+			# Translators: Etiqueta para renombrar el elemento
+			_('Escriba el nuevo nombre para este elemento:'),
+			# Translators: Título del diálogo de renombrado
+			_('Renombrar elemento'),
+			value=current_name
+		)
+		
+		def callback(result):
+			if result == wx.ID_OK:
+				new_name = get_name.GetValue()
+				if new_name.strip() != "":
+					# Si es un elemento de texto antiguo (data es None), migramos el contenido original a data antes de cambiar el nombre
+					if item[2] == 0 and item[3] is None:
+						db.update('UPDATE strings SET string=?, data=? WHERE id=?', (new_name, item[0], item_id))
+						# Actualizar la lista local
+						updated_item = list(self.data[self.y][self.x])
+						updated_item[0] = new_name
+						updated_item[3] = item[0]
+						self.data[self.y][self.x] = tuple(updated_item)
+					else:
+						db.update('UPDATE strings SET string=? WHERE id=?', (new_name, item_id))
+						updated_item = list(self.data[self.y][self.x])
+						updated_item[0] = new_name
+						self.data[self.y][self.x] = tuple(updated_item)
+					# Translators: Mensaje de confirmación de renombrado
+					mute(0.3, _('Elemento renombrado'))
+				else:
+					mute(0.3, _('Renombrado cancelado: nombre vacío'))
+			self.bindGestures(self.__newGestures)
+			
+		gui.runScriptModalDialog(get_name, callback)
+
 	def script_commandList(self, gesture):
 		self.finish()
 		# Translators: Texto de ayuda con la lista de comandos
@@ -433,6 +479,7 @@ escape; desactiva la capa de comandos
 		'kb:end': 'items',
 		'kb:rightArrow': 'copyItem',
 		'kb:leftArrow': 'viewItem',
+		'kb:f2': 'renameItem',
 		'kb:backspace': 'deleteItem',
 		'kb:v': 'pasteItem',
 		'kb:b': 'findItem',

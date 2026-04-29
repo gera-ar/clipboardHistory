@@ -53,7 +53,7 @@ user32.SetClipboardData.argtypes = [wintypes.UINT, wintypes.HANDLE]
 user32.SetClipboardData.restype = wintypes.HANDLE
 user32.DefWindowProcW.argtypes = [wintypes.HWND, wintypes.UINT, wintypes.WPARAM, wintypes.LPARAM]
 user32.DefWindowProcW.restype = LRESULT
-user32.RegisterClassW.argtypes = [ctypes.c_void_p] # POINTER(WNDCLASS)
+user32.RegisterClassW.argtypes = [ctypes.c_void_p]
 user32.RegisterClassW.restype = wintypes.ATOM
 user32.CreateWindowExW.argtypes = [wintypes.DWORD, wintypes.LPCWSTR, wintypes.LPCWSTR, wintypes.DWORD, ctypes.c_int, ctypes.c_int, ctypes.c_int, ctypes.c_int, wintypes.HWND, wintypes.HMENU, wintypes.HINSTANCE, wintypes.LPVOID]
 user32.CreateWindowExW.restype = wintypes.HWND
@@ -156,7 +156,8 @@ class ClipboardMonitor:
 
 	def get_content(self, media_dir):
 		opened = False
-		for _ in range(5):
+		# Usamos i en lugar de _ para evitar pisar la función de traducción
+		for i in range(5):
 			if user32.OpenClipboard(None):
 				opened = True
 				break
@@ -169,10 +170,10 @@ class ClipboardMonitor:
 				if h:
 					count = shell32.DragQueryFileW(h, 0xFFFFFFFF, None, 0)
 					files = []
-					for i in range(count):
-						length = shell32.DragQueryFileW(h, i, None, 0)
+					for i_file in range(count):
+						length = shell32.DragQueryFileW(h, i_file, None, 0)
 						buf = ctypes.create_unicode_buffer(length + 1)
-						shell32.DragQueryFileW(h, i, buf, length + 1)
+						shell32.DragQueryFileW(h, i_file, buf, length + 1)
 						if buf.value: files.append(buf.value)
 					if files:
 						data = "|".join(files)
@@ -193,7 +194,9 @@ class ClipboardMonitor:
 						if not os.path.exists(media_dir): os.makedirs(media_dir)
 						path = os.path.join(media_dir, fname)
 						if os.path.exists(path) or self._save_bmp(raw, path):
-							return (2, _("Imagen copiada"), fname)
+							import datetime
+							timestamp = datetime.datetime.now().strftime('%Y-%m-%d %H:%M')
+							return (2, _("Imagen copiada ({})").format(timestamp), fname)
 					elif ptr: kernel32.GlobalUnlock(h)
 			# 3. Texto
 			text = None
@@ -211,7 +214,7 @@ class ClipboardMonitor:
 					if ptr:
 						text = ctypes.string_at(ptr).decode('mbcs', errors='replace')
 						kernel32.GlobalUnlock(h)
-			if text and text.strip(): return (0, text, None)
+			if text and text.strip(): return (0, text, text)
 		finally: user32.CloseClipboard()
 		return None
 

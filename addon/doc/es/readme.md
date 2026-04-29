@@ -21,6 +21,12 @@ El complemento ahora puede capturar archivos copiados desde el explorador y capt
 
 **Nota sobre Exportación/Importación**: Por motivos de seguridad y portabilidad, los binarios (archivos e imágenes en caché) **no se incluyen** en los procesos de exportación e importación. Solo se transferirán los elementos de texto plano entre diferentes instalaciones de NVDA.
 
+### Renombrado de elementos
+
+Cualquier elemento del historial (texto o binarios) puede ser renombrado pulsando la tecla **F2** mientras la capa de comandos está activa. Esto permite asignar nombres descriptivos a las imágenes o archivos para encontrarlos fácilmente después mediante la función de búsqueda (**b**).
+
+**Nota para textos**: Al renombrar un elemento de texto, el nombre que asignes funcionará como una etiqueta visual en la lista, pero el contenido original permanecerá intacto. Al copiar o pegar el elemento, se seguirá utilizando el texto original, no el nombre personalizado.
+
 Hay 2 funciones asignables desde el diálogo gestos de entrada, categoría clipboardHistory. A saber
 
 * Activar la capa de comandos
@@ -45,6 +51,7 @@ Una vez activa la capa de comandos con el gesto asignado previamente, tenemos lo
 * Retroceso; en la lista general elimina el elemento. En favoritos lo desmarca como tal
 * Flecha derecha; copia el texto al portapapeles y lo desplaza al comienzo de la lista general
 * Flecha izquierda; abre el texto en una ventana de NVDA para su posterior revisión
+* f2; permite renombrar el elemento seleccionado
 * v; Pega el texto en la ventana con el foco
 * c; verbaliza el número de caracteres excluyendo los espacios, los espacios en blanco, las palabras y las líneas
 * f; marca o desmarca el elemento como favorito
