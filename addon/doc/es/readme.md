@@ -13,19 +13,6 @@ También se crea una carpeta "clipboard_history_media" para almacenar las imáge
 También se crea un escuchador (listener) para capturar los cambios del portapapeles, y actualizar la base de datos cuando haya contenido de texto, archivos o imágenes.
 El historial no guarda duplicaciones para evitar un crecimiento innecesario de la base de datos. al copiar un texto existente, este se copia en la primera posición de la lista eliminando la anterior.
 
-### Soporte de Binarios (Archivos e Imágenes)
-
-El complemento ahora puede capturar archivos copiados desde el explorador y capturas de pantalla o imágenes.
-* **Archivos**: Se guarda la ruta del archivo. Al recuperar el elemento, el complemento intentará copiar el archivo original. Si el archivo ya no existe, NVDA anunciará "Binario no encontrado".
-* **Imágenes**: Las imágenes sin ruta (como capturas de pantalla) se guardan en una caché local.
-
-**Nota sobre Exportación/Importación**: Por motivos de seguridad y portabilidad, los binarios (archivos e imágenes en caché) **no se incluyen** en los procesos de exportación e importación. Solo se transferirán los elementos de texto plano entre diferentes instalaciones de NVDA.
-
-### Renombrado de elementos
-
-Cualquier elemento del historial (texto o binarios) puede ser renombrado pulsando la tecla **F2** mientras la capa de comandos está activa. Esto permite asignar nombres descriptivos a las imágenes o archivos para encontrarlos fácilmente después mediante la función de búsqueda (**b**).
-
-**Nota para textos**: Al renombrar un elemento de texto, el nombre que asignes funcionará como una etiqueta visual en la lista, pero el contenido original permanecerá intacto. Al copiar o pegar el elemento, se seguirá utilizando el texto original, no el nombre personalizado.
 
 Hay 2 funciones asignables desde el diálogo gestos de entrada, categoría clipboardHistory. A saber
 
@@ -128,3 +115,18 @@ La lista de elementos tiene los siguientes atajos disponibles:
 * alt + suprimir; elimina el historial
 * control + p; activa la ventana de configuración del complemento
 * escape; cierra la interfaz
+
+
+### Soporte de Binarios (Archivos e Imágenes)
+
+El complemento ahora puede capturar archivos copiados desde el explorador y capturas de pantalla o imágenes.
+* Archivos: Se guarda la ruta del archivo. Al recuperar el elemento, el complemento intentará copiar el archivo original. Si el archivo ya no existe, NVDA anunciará "Binario no encontrado".
+* Imágenes: Las imágenes sin ruta (como capturas de pantalla) se guardan en una caché local.
+
+Nota sobre Exportación/Importación: Por motivos de seguridad y portabilidad, los binarios (archivos e imágenes en caché) no se incluyen en los procesos de exportación e importación. Solo se transferirán los elementos de texto plano entre diferentes instalaciones de NVDA.
+
+### Renombrado de elementos
+
+Cualquier elemento del historial (texto o binarios) puede ser renombrado pulsando la tecla F2 mientras la capa de comandos está activa. Esto permite asignar nombres descriptivos a las imágenes o archivos para encontrarlos fácilmente después mediante la función de búsqueda (b).
+
+Nota para textos: Al renombrar un elemento de texto, el nombre que asignes funcionará como una etiqueta visual en la lista, pero el contenido original permanecerá intacto. Al copiar o pegar el elemento, se seguirá utilizando el texto original, no el nombre personalizado.

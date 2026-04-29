@@ -123,18 +123,25 @@ class ClipboardMonitor:
 			content = self.get_content(media_dir)
 			if content:
 				type_val, string_val, data_val = content
-				if type_val == 0:
-					rs = db.get("SELECT favorite FROM strings WHERE type=0 AND string=?", "one", (string_val,))
-					if rs:
-						db.delete("DELETE FROM strings WHERE type=0 AND string=?", (string_val,))
-						favorite = rs[0]
-					else: favorite = 0
+				
+				# Buscamos duplicados por contenido real (data_val). Si es type 0 (texto), data_val contiene el texto real
+				rs = db.get("SELECT favorite, string FROM strings WHERE type=? AND data=?", "one", (type_val, data_val))
+				if rs:
+					# Recuperamos el estado de favorito y el nombre personalizado (etiqueta) que tenía
+					favorite, string_val = rs[0], rs[1]
+					db.delete("DELETE FROM strings WHERE type=? AND data=?", (type_val, data_val))
 				else:
-					rs = db.get("SELECT favorite FROM strings WHERE type=? AND data=?", "one", (type_val, data_val))
-					if rs:
-						db.delete("DELETE FROM strings WHERE type=? AND data=?", (type_val, data_val))
-						favorite = rs[0]
-					else: favorite = 0
+					# Compatibilidad con elementos de texto antiguos donde data era NULL
+					if type_val == 0:
+						rs_old = db.get("SELECT favorite, string FROM strings WHERE type=0 AND string=? AND data IS NULL", "one", (string_val,))
+						if rs_old:
+							favorite, string_val = rs_old[0], rs_old[1]
+							db.delete("DELETE FROM strings WHERE type=0 AND string=? AND data IS NULL", (string_val,))
+						else:
+							favorite = 0
+					else:
+						favorite = 0
+						
 				db.insert("INSERT INTO strings (string, favorite, type, data) VALUES (?, ?, ?, ?)", (string_val, favorite, type_val, data_val))
 				self._cleanup_old_entries(media_dir)
 		except Exception as e:

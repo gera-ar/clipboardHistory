@@ -373,6 +373,7 @@ Inicio; primer elemento de la lista
 fin; último elemento de la lista
 Flecha derecha; copia el elemento actual al portapapeles y lo desplaza al comienzo de la lista
 Flecha izquierda; abre el contenido del elemento actual en una ventana de NVDA
+F2; Renombra el elemento seleccionado para identificarlo mejor
 Retroceso; En la lista general elimina el actual elemento de la lista, en la de favoritos lo desmarca como tal
 v; Pega el contenido del elemento actual en la ventana con el foco
 tab; conmuta entre la lista general y la de favoritos
