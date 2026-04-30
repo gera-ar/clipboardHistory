@@ -121,9 +121,8 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
 	)
 	def script_viewData(self, gesture):
 		if self.switch or self.dialogs: return
-		data= db.get('SELECT string, favorite FROM strings WHERE favorite = 0 ORDER BY id DESC', 'all')
-		# favorites= [x for x in data if x[1] == 1]
-		favorites= db.get('SELECT string, favorite FROM strings WHERE favorite = 1 ORDER BY id DESC', 'all')
+		data= db.get('SELECT string, favorite, type, data, id FROM strings WHERE favorite = 0 ORDER BY id DESC', 'all')
+		favorites= db.get('SELECT string, favorite, type, data, id FROM strings WHERE favorite = 1 ORDER BY id DESC', 'all')
 		self.data= [data, favorites]
 		settings= db.get('SELECT sounds, max_elements, number FROM settings', 'one')
 		self.sounds, self.max_elements, self.number= settings[0], settings[1], settings[2]
@@ -162,35 +161,75 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
 				self.play('click')
 		self.speak()
 
+	def _copy_item_to_clipboard(self, item):
+		string_val, favorite, type_val, data_val, item_id = item[0], item[1], item[2], item[3], item[4]
+		if type_val == 0:
+			# Si es texto, preferimos data_val (contenido real) sobre string_val (etiqueta)
+			content = data_val if data_val is not None else string_val
+			api.copyToClip(content)
+			return True
+		elif type_val == 1:
+			files = data_val.split('|')
+			exists = [f for f in files if os.path.exists(f)]
+			if not exists:
+				return False
+			return self.monitor.set_files(exists)
+		elif type_val == 2:
+			img_path = os.path.join(globalVars.appArgs.configPath, 'clipboard_history_media', data_val)
+			if not os.path.exists(img_path):
+				return False
+			return self.monitor.set_image(img_path)
+		return False
+
 	@emptyListDecorator
 	def script_copyItem(self, gesture):
-		api.copyToClip(self.data[self.y][self.x][0])
+		item = self.data[self.y][self.x]
+		if not self._copy_item_to_clipboard(item):
+			# Translators: Mensaje de binario no encontrado
+			ui.message(_('Binario no encontrado'))
+			return
 		# Translators: Mensaje de elemento copiado
 		ui.message(_('Elemento copiado'))
 		self.finish('copy')
 
 	@emptyListDecorator
 	def script_viewItem(self, gesture):
+		item = self.data[self.y][self.x]
+		type_val = item[2]
+		if type_val == 1:
+			content_to_show = item[3].replace('|', '\n')
+		elif type_val == 0:
+			# Para texto mostramos el contenido real
+			content_to_show = item[3] if item[3] is not None else item[0]
+		else:
+			content_to_show = item[0]
 		# Translators: Título de la ventana con el contenido
-		secureBrowseableMessage(self.data[self.y][self.x][0], _('Contenido'))
+		secureBrowseableMessage(content_to_show, _('Contenido'))
 		self.finish('open')
 		# Translators: Mensaje que avisa que se está mostrando el contenido
 		mute(0.1, _('Mostrando el contenido'))
 
 	@emptyListDecorator
 	def script_deleteItem(self, gesture):
+		item = self.data[self.y][self.x]
+		item_id = item[4]
+		
+		db.delete('DELETE FROM strings WHERE id=?', (item_id,))
+		
+		if item[2] == 2 and item[3]:
+			img_path = os.path.join(globalVars.appArgs.configPath, 'clipboard_history_media', item[3])
+			if os.path.exists(img_path):
+				try:
+					os.remove(img_path)
+				except OSError:
+					pass
+					
+		self.data[self.y].pop(self.x)
 		if self.y == 1:
-			db.delete('DELETE FROM strings WHERE string=?', (self.data[1][self.x][0],))
-			self.data[1].pop(self.x)
 			# Translators: Mensaje de favorito eliminado
 			ui.message(_('Eliminado de favoritos'))
 			return
-		try:
-			self.data[1].remove(self.data[0][self.x])
-		except ValueError:
-			pass
-		db.delete('DELETE FROM strings WHERE string=?', (self.data[0][self.x][0],))
-		self.data[0].pop(self.x)
+			
 		if self.sounds: self.play('delete')
 		if len(self.data[self.y]) < 1:
 			ui.message(self.empty)
@@ -207,7 +246,11 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
 
 	@emptyListDecorator
 	def script_pasteItem(self, gesture):
-		api.copyToClip(self.data[self.y][self.x][0])
+		item = self.data[self.y][self.x]
+		if not self._copy_item_to_clipboard(item):
+			# Translators: Mensaje de binario no encontrado
+			ui.message(_('Binario no encontrado'))
+			return
 		self.finish('paste')
 		# Translators: Aviso de mensaje pegado
 		mute(0.2, _('Pegado'))
@@ -279,6 +322,47 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
 		gui.mainFrame.prePopup()
 		self.delete_dialog.Show()
 
+	@emptyListDecorator
+	def script_renameItem(self, gesture):
+		self.finish()
+		item = self.data[self.y][self.x]
+		item_id = item[4]
+		current_name = item[0]
+		
+		get_name = wx.TextEntryDialog(
+			gui.mainFrame,
+			# Translators: Etiqueta para renombrar el elemento
+			_('Escriba el nuevo nombre para este elemento:'),
+			# Translators: Título del diálogo de renombrado
+			_('Renombrar elemento'),
+			value=current_name
+		)
+		
+		def callback(result):
+			if result == wx.ID_OK:
+				new_name = get_name.GetValue()
+				if new_name.strip() != "":
+					# Si es un elemento de texto antiguo (data es None), migramos el contenido original a data antes de cambiar el nombre
+					if item[2] == 0 and item[3] is None:
+						db.update('UPDATE strings SET string=?, data=? WHERE id=?', (new_name, item[0], item_id))
+						# Actualizar la lista local
+						updated_item = list(self.data[self.y][self.x])
+						updated_item[0] = new_name
+						updated_item[3] = item[0]
+						self.data[self.y][self.x] = tuple(updated_item)
+					else:
+						db.update('UPDATE strings SET string=? WHERE id=?', (new_name, item_id))
+						updated_item = list(self.data[self.y][self.x])
+						updated_item[0] = new_name
+						self.data[self.y][self.x] = tuple(updated_item)
+					# Translators: Mensaje de confirmación de renombrado
+					mute(0.3, _('Elemento renombrado'))
+				else:
+					mute(0.3, _('Renombrado cancelado: nombre vacío'))
+			self.bindGestures(self.__newGestures)
+			
+		gui.runScriptModalDialog(get_name, callback)
+
 	def script_commandList(self, gesture):
 		self.finish()
 		# Translators: Texto de ayuda con la lista de comandos
@@ -289,6 +373,7 @@ Inicio; primer elemento de la lista
 fin; último elemento de la lista
 Flecha derecha; copia el elemento actual al portapapeles y lo desplaza al comienzo de la lista
 Flecha izquierda; abre el contenido del elemento actual en una ventana de NVDA
+F2; Renombra el elemento seleccionado para identificarlo mejor
 Retroceso; En la lista general elimina el actual elemento de la lista, en la de favoritos lo desmarca como tal
 v; Pega el contenido del elemento actual en la ventana con el foco
 tab; conmuta entre la lista general y la de favoritos
@@ -372,9 +457,12 @@ escape; desactiva la capa de comandos
 	@emptyListDecorator
 	def script_favorite(self, gesture):
 		if self.y == 0 and self.data[0][self.x][1] == 0:
-			self.data[0][self.x]= (self.data[0][self.x][0], 1)
-			db.update('UPDATE strings SET favorite=1 WHERE string=?', (self.data[0][self.x][0],))
-			self.data[1].append(self.data[0][self.x])
+			item = list(self.data[0][self.x])
+			item[1] = 1
+			item_tuple = tuple(item)
+			self.data[0][self.x] = item_tuple
+			db.update('UPDATE strings SET favorite=1 WHERE id=?', (item_tuple[4],))
+			self.data[1].append(item_tuple)
 			self.data[0].pop(self.x)
 			# Translators: Mensaje de marcado como favorito
 			ui.message(_('Marcado como favorito'))
@@ -392,6 +480,7 @@ escape; desactiva la capa de comandos
 		'kb:end': 'items',
 		'kb:rightArrow': 'copyItem',
 		'kb:leftArrow': 'viewItem',
+		'kb:f2': 'renameItem',
 		'kb:backspace': 'deleteItem',
 		'kb:v': 'pasteItem',
 		'kb:b': 'findItem',
