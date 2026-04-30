@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Copyright (C) 2021 Héctor J. Benítez Corredera <xebolax@gmail.com>
+# Copyright (C) 2026 Héctor J. Benítez Corredera <xebolax@gmail.com>
 # This file is covered by the GNU General Public License.
 #
 # Codigo obtenido de:

@@ -2,17 +2,16 @@
 
 Por  [gera Kessler](http://gera.ar)
 
-Con la inestimable colaboración de Héctor Benítez.
+Con las inestimables colaboraciónes de [Héctor Benítez](https://github.com/hxebolax) y [Angel Alcántar](https://github.com/rayo-alcantar)
 
 Este complemento permite gestionar un historial del portapapeles persistiéndolo en una base de datos local, lo que permite conservar los textos y archivos binarios aún cuando el sistema se reinicia.
 Añade comandos para la exploración del historial, funciones de búsqueda, conteo, favoritos, backup, y visualización de los elementos.
 A parte de la interacción a través de la capa de comandos con funciones avanzadas, se puede utilizar una versión gráfica sencilla para quienes no quieran compicaciones.
 
 Al instalarlo por primera vez e iniciar NVDA, se crea el archivo "clipboard_history" que contiene la base de datos. Este archivo se aloja en la raíz de la carpeta nvda en los directorios de la configuración del usuario.
-También se crea una carpeta "clipboard_history_media" para almacenar las imágenes copiadas directamente al portapapeles.
+Se crea una carpeta "clipboard_history_media" para almacenar las imágenes copiadas directamente al portapapeles.
 También se crea un escuchador (listener) para capturar los cambios del portapapeles, y actualizar la base de datos cuando haya contenido de texto, archivos o imágenes.
 El historial no guarda duplicaciones para evitar un crecimiento innecesario de la base de datos. al copiar un texto existente, este se copia en la primera posición de la lista eliminando la anterior.
-
 
 Hay 2 funciones asignables desde el diálogo gestos de entrada, categoría clipboardHistory. A saber
 
@@ -38,7 +37,7 @@ Una vez activa la capa de comandos con el gesto asignado previamente, tenemos lo
 * Retroceso; en la lista general elimina el elemento. En favoritos lo desmarca como tal
 * Flecha derecha; copia el texto al portapapeles y lo desplaza al comienzo de la lista general
 * Flecha izquierda; abre el texto en una ventana de NVDA para su posterior revisión
-* f2; permite renombrar el elemento seleccionado
+* f2; permite asignar un nombre al elemento sin alterar el contenido
 * v; Pega el texto en la ventana con el foco
 * c; verbaliza el número de caracteres excluyendo los espacios, los espacios en blanco, las palabras y las líneas
 * f; marca o desmarca el elemento como favorito
@@ -127,6 +126,6 @@ Nota sobre Exportación/Importación: Por motivos de seguridad y portabilidad, l
 
 ### Renombrado de elementos
 
-Cualquier elemento del historial (texto o binarios) puede ser renombrado pulsando la tecla F2 mientras la capa de comandos está activa. Esto permite asignar nombres descriptivos a las imágenes o archivos para encontrarlos fácilmente después mediante la función de búsqueda (b).
+Cualquier elemento del historial (texto o binarios) puede ser renombrado pulsando la tecla F2 mientras la capa de comandos está activa. Esto permite asignar nombres descriptivos a las imágenes o archivos para encontrarlos fácilmente mediante la función de búsqueda (b).
 
 Nota para textos: Al renombrar un elemento de texto, el nombre que asignes funcionará como una etiqueta visual en la lista, pero el contenido original permanecerá intacto. Al copiar o pegar el elemento, se seguirá utilizando el texto original, no el nombre personalizado.

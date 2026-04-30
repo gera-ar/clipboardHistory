@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Copyright (C) 2024 Gerardo Kessler <gera.ar@yahoo.com>
+# Copyright (C) 2026 Gerardo Kessler <gera.ar@yahoo.com>
 # This file is covered by the GNU General Public License.
 # Código del script clipboard-monitor perteneciente a Héctor Benítez
 
